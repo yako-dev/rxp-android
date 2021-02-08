@@ -2,13 +2,18 @@ package com.realexpayments.hpp;
 
 import java.util.HashMap;
 
-import retrofit.Callback;
-import retrofit.client.Response;
-import retrofit.http.Field;
-import retrofit.http.FieldMap;
-import retrofit.http.FormUrlEncoded;
-import retrofit.http.POST;
-import retrofit.http.Path;
+
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.http.Field;
+import retrofit2.http.FieldMap;
+import retrofit2.http.FormUrlEncoded;
+import retrofit2.http.Header;
+import retrofit2.http.Headers;
+import retrofit2.http.POST;
+import retrofit2.http.Path;
 
 /**
  * Declaration of the server api
@@ -21,25 +26,22 @@ interface IHPPServerAPI {
 
     @FormUrlEncoded
     @POST(PATH)
-    void getHPPRequest(
-            @Path(value = PATH_ARG, encode = false) String path,
-            @FieldMap HashMap<String, String> args,
-            Callback<Response> callback
+    Call<ResponseBody> getHPPRequest(
+            @Path(value = PATH_ARG, encoded = true) String path,
+            @FieldMap HashMap<String, String> args
     );
 
     @FormUrlEncoded
     @POST(PATH)
-    void getConsumerRequest(
-            @Path(value = PATH_ARG, encode = false) String path,
-            @Field("hppResponse") String hppResponse,
-            Callback<Response> callback
+    Call<ResponseBody> getConsumerRequest(
+            @Path(value = PATH_ARG, encoded = true) String path,
+            @Field("hppResponse") String hppResponse
     );
 
     @FormUrlEncoded
     @POST(PATH)
-    void getHPP(
-            @Path(value = PATH_ARG, encode = false) String path,
-            @FieldMap HashMap<String, String> args,
-            Callback<Response> callback
+    Call<ResponseBody> getHPP(
+            @Path(value = PATH_ARG, encoded = true) String path,
+            @FieldMap HashMap<String, String> args
     );
 }

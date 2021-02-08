@@ -12,6 +12,7 @@ android {
     }
     buildTypes {
         release {
+            useProguard true
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -19,9 +20,11 @@ android {
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation 'com.google.code.gson:gson:2.8.6'
-    implementation 'androidx.appcompat:appcompat:1.1.0'
-    implementation 'com.squareup.retrofit:retrofit:1.7.1'
+    implementation 'androidx.appcompat:appcompat:1.2.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.1.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.2.1'
     implementation 'org.apache.httpcomponents:httpcore:4.4.10'
+    implementation 'com.squareup.retrofit2:converter-gson:2.1.0'
+    implementation 'com.squareup.retrofit2:converter-scalars:2.1.0'
 }

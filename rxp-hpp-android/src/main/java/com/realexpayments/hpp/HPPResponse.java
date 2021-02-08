@@ -735,36 +735,67 @@ public class HPPResponse {
     public HashMap<String, String> getMap() {
         HashMap<String, String> parameters = new HashMap<>();
 
+        if(merchantId != null)
         parameters.put(MERCHANT_ID, merchantId);
+        if(account != null)
         parameters.put(ACCOUNT, account);
+        if(orderId != null)
         parameters.put(ORDER_ID, orderId);
+        if(amount != null)
         parameters.put(AMOUNT, amount);
+        if(currency != null)
         parameters.put(CURRENCY, currency);
+        if(timestamp != null)
         parameters.put(TIMESTAMP, timestamp);
+        if(autoSettleFlag != null)
         parameters.put(AUTO_SETTLE_FLAG, autoSettleFlag);
+        if(commentOne != null)
         parameters.put(COMMENT1, commentOne);
+        if(commentTwo != null)
         parameters.put(COMMENT2, commentTwo);
+        if(returnTss != null)
         parameters.put(RETURN_TSS, returnTss);
+        if(shippingCode != null)
         parameters.put(SHIPPING_CODE, shippingCode);
+        if(shippingCountry != null)
         parameters.put(SHIPPING_CO, shippingCountry);
+        if(billingCode != null)
         parameters.put(BILLING_CODE, billingCode);
+        if(billingCountry != null)
         parameters.put(BILLING_CO, billingCountry);
+        if(customerNumber != null)
         parameters.put(CUST_NUM, customerNumber);
+        if(variableReference != null)
         parameters.put(VAR_REF, variableReference);
+        if(productId != null)
         parameters.put(PROD_ID, productId);
+        if(language != null)
         parameters.put(HPP_LANG, language);
+        if(cardPaymentButtonText != null)
         parameters.put(CARD_PAYMENT_BUTTON, cardPaymentButtonText);
+        if(cardStorageEnable != null)
         parameters.put(CARD_STORAGE_ENABLE, cardStorageEnable);
+        if(offerSaveCard != null)
         parameters.put(OFFER_SAVE_CARD, offerSaveCard);
+        if(payerReference != null)
         parameters.put(PAYER_REF, payerReference);
+        if(paymentReference != null)
         parameters.put(PMT_REF, paymentReference);
+        if(payerExists != null)
         parameters.put(PAYER_EXIST, payerExists);
+        if(validateCardOnly != null)
         parameters.put(VALIDATE_CARD_ONLY, validateCardOnly);
+        if(dccEnable != null)
         parameters.put(DCC_ENABLE, dccEnable);
+        if(sha1Hash != null)
         parameters.put(SHA1_HASH, sha1Hash);
+        if(templateType != null)
         parameters.put(HPP_TEMPLATE_TYPE, templateType);
+        if(origin != null)
         parameters.put(HPP_ORIGIN, origin);
+        if(hppVersion != null)
         parameters.put(HPP_VERSION, hppVersion);
+        if(hppPostResponse != null)
         parameters.put(HPP_POST_RESPONSE, hppPostResponse);
 
         return parameters;

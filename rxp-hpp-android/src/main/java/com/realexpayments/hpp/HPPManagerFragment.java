@@ -30,15 +30,17 @@ import androidx.fragment.app.Fragment;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Map;
 
-import retrofit.Callback;
-import retrofit.RetrofitError;
-import retrofit.client.Response;
-import retrofit.mime.TypedByteArray;
+
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 import static com.realexpayments.hpp.Constants.HTML_MIME_TYPE;
 import static com.realexpayments.hpp.Constants.HTTP_SCHEME_ENDING;
@@ -56,7 +58,7 @@ import static com.realexpayments.hpp.HPPResponse.HPP_VERSION;
  * getFragmentManager() .beginTransaction().add(R.id.container,hppManagerFrament) .commit();
  **/
 
-public class HPPManagerFragment extends Fragment implements Callback<Response> {
+public class HPPManagerFragment extends Fragment {
 
     private HPPManagerListener mListener;
     private View root;
@@ -91,13 +93,29 @@ public class HPPManagerFragment extends Fragment implements Callback<Response> {
                 hppManager = HPPManager.createFromBundle(getArguments());
 
                 HashMap<String, String> parameters = hppManager.getMap();
+                IHPPServerAPI adapter = ApiAdapter.getAdapter(getHostPath(hppManager.getHppRequestProducerURL()), getRequestHeaders());
 
-                ApiAdapter.getAdapter(getHostPath(hppManager.getHppRequestProducerURL()), getRequestHeaders())
+              Call<ResponseBody> call =  adapter
                         .getHPPRequest(
                                 getRelativePathEncoded(hppManager.getHppRequestProducerURL()),
-                                parameters,
-                                this
+                                parameters
                         );
+
+                call.enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        System.out.println("ON RESPONSE");
+                        System.out.println(response.body());
+                        handleResponse(call, response);
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        System.out.println("ON FAILURE");
+                        t.printStackTrace();
+                       handleFailure(call, t);
+                    }
+                });
 
             } else {
 
@@ -154,119 +172,132 @@ public class HPPManagerFragment extends Fragment implements Callback<Response> {
         super.onDestroy();
     }
 
+    public void handleResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+        if(response.isSuccessful()) {
+            final WebView webView = root.findViewById(R.id.hpp_web_view);
+            webView.getSettings().setJavaScriptEnabled(true);
+            webView.addJavascriptInterface(this, JS_WEBVIEW_OBJECT_NAME);
+            WebView.setWebContentsDebuggingEnabled(true);
 
-    @SuppressLint("SetJavaScriptEnabled")
-    @TargetApi(Build.VERSION_CODES.KITKAT)
-    @Override
-    public void success(Response hppResponse, Response response) {
-        final WebView webView = root.findViewById(R.id.hpp_web_view);
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.addJavascriptInterface(this, JS_WEBVIEW_OBJECT_NAME);
-        WebView.setWebContentsDebuggingEnabled(true);
+            webView.setOnKeyListener(new View.OnKeyListener() {
 
-        webView.setOnKeyListener(new View.OnKeyListener() {
+                @Override
+                public boolean onKey(View v, int keyCode, KeyEvent event) {
+                    if (keyCode == KeyEvent.KEYCODE_BACK) {
 
-            @Override
-            public boolean onKey(View v, int keyCode, KeyEvent event) {
-                if (keyCode == KeyEvent.KEYCODE_BACK) {
+                        if (!isResultReceived) {
+                            mListener.hppManagerCancelled();
+                            isResultReceived = true;
+                        }
 
-                    if (!isResultReceived) {
-                        mListener.hppManagerCancelled();
-                        isResultReceived = true;
+                        return false;
                     }
-
                     return false;
                 }
-                return false;
-            }
-        });
+            });
 
-        webView.setWebChromeClient(new WebChromeClient() {
+            webView.setWebChromeClient(new WebChromeClient() {
 
-            @Override
-            public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-                if (consoleMessage.message().startsWith(HPPManager.RESULT_MESSAGE)) {
-                    String msg = consoleMessage.message().substring(HPPManager.RESULT_MESSAGE.length());
-                    callbackHandler(msg, hppManager.getHppURL());
-                    return true;
+                @Override
+                public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
+                    if (consoleMessage.message().startsWith(HPPManager.RESULT_MESSAGE)) {
+                        String msg = consoleMessage.message().substring(HPPManager.RESULT_MESSAGE.length());
+                        callbackHandler(msg, hppManager.getHppURL());
+                        return true;
+                    }
+
+                    return super.onConsoleMessage(consoleMessage);
+
                 }
+            });
 
-                return super.onConsoleMessage(consoleMessage);
+            webView.setWebViewClient(new WebViewClient() {
 
-            }
-        });
+                                         Handler handler = new Handler();
+                                         String url;
 
-        webView.setWebViewClient(new WebViewClient() {
+                                         @TargetApi(Build.VERSION_CODES.KITKAT)
+                                         @Override
+                                         public void onLoadResource(final WebView view, String url) {
+                                             this.url = url;
+                                             if (url.endsWith("api/auth")) {
+                                                 checkResult(view);
+                                             }
 
-                                     Handler handler = new Handler();
-                                     String url;
-
-                                     @TargetApi(Build.VERSION_CODES.KITKAT)
-                                     @Override
-                                     public void onLoadResource(final WebView view, String url) {
-                                         this.url = url;
-                                         if (url.endsWith("api/auth")) {
-                                             checkResult(view);
+                                             super.onLoadResource(view, url);
                                          }
 
-                                         super.onLoadResource(view, url);
-                                     }
-
-                                     private void checkResult(final WebView view) {
-                                         handler.postDelayed(new Runnable() {
-                                             @Override
-                                             public void run() {
-                                                 view.evaluateJavascript("javascript:console.log('" + HPPManager.RESULT_MESSAGE + "'+document.getElementById('result-message').innerHTML);", new ValueCallback<String>() {
-                                                     @Override
-                                                     public void onReceiveValue(String value) {
-                                                         if (!isResultReceived) {
-                                                             checkResult(view);
+                                         private void checkResult(final WebView view) {
+                                             handler.postDelayed(new Runnable() {
+                                                 @Override
+                                                 public void run() {
+                                                     view.evaluateJavascript("javascript:console.log('" + HPPManager.RESULT_MESSAGE + "'+document.getElementById('result-message').innerHTML);", new ValueCallback<String>() {
+                                                         @Override
+                                                         public void onReceiveValue(String value) {
+                                                             if (!isResultReceived) {
+                                                                 checkResult(view);
+                                                             }
                                                          }
-                                                     }
-                                                 });
+                                                     });
 
+                                                 }
+                                             }, 100);
+                                         }
+
+                                         @SuppressLint("NewApi")
+                                         @Override
+                                         public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+                                             super.onReceivedHttpError(view, request, errorResponse);
+
+                                             if (this.url.equals(hppManager.getHppURL())) {
+
+                                                 isResultReceived = true;
+                                                 mListener.hppManagerFailedWithError(new HPPError(errorResponse.getReasonPhrase(), hppManager.getHppURL()));
                                              }
-                                         }, 100);
-                                     }
 
-                                     @SuppressLint("NewApi")
-                                     @Override
-                                     public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
-                                         super.onReceivedHttpError(view, request, errorResponse);
+                                         }
 
-                                         if (this.url.equals(hppManager.getHppURL())) {
+                                         @SuppressLint("NewApi")
+                                         @Override
+                                         public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                                             super.onReceivedError(view, request, error);
 
                                              isResultReceived = true;
-                                             mListener.hppManagerFailedWithError(new HPPError(errorResponse.getReasonPhrase(), hppManager.getHppURL()));
+                                             mListener.hppManagerFailedWithError(new HPPError(error.getDescription().toString(), hppManager.getHppURL()));
+
                                          }
 
+                                         @Override
+                                         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                                             super.onReceivedSslError(view, handler, error);
+                                             isResultReceived = true;
+                                             mListener.hppManagerFailedWithError(new HPPError(error.toString(), hppManager.getHppURL()));
+
+                                         }
                                      }
+            );
 
-                                     @SuppressLint("NewApi")
-                                     @Override
-                                     public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                                         super.onReceivedError(view, request, error);
+            String resp = null;
+            try {
+                resp = new String(response.body().bytes());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
-                                         isResultReceived = true;
-                                         mListener.hppManagerFailedWithError(new HPPError(error.getDescription().toString(), hppManager.getHppURL()));
+            System.out.println("-------------------> SUCCESS");
+            System.out.println(resp);
+            Type mapType = new TypeToken<Map<String, String>>() {
+            }.getType();
+            Map<String, String> consumerResponseParams = new Gson().fromJson(resp, mapType);
+            postHPPData(webView, getHPPPostData(consumerResponseParams));
+        } else {
+            System.out.println("-------------------> failure");
+            System.out.println(response.message());
+            System.out.println(response.raw().toString());
+            System.out.println(response.code());
+            mListener.hppManagerFailedWithError(new HPPError(String.valueOf(response.code()), new Throwable(String.valueOf(response.code())), call.request().url().encodedPath()));
 
-                                     }
-
-                                     @Override
-                                     public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                                         super.onReceivedSslError(view, handler, error);
-                                         isResultReceived = true;
-                                         mListener.hppManagerFailedWithError(new HPPError(error.toString(), hppManager.getHppURL()));
-
-                                     }
-                                 }
-        );
-
-        String resp = new String(((TypedByteArray) response.getBody()).getBytes());
-        Type mapType = new TypeToken<Map<String, String>>() {
-        }.getType();
-        Map<String, String> consumerResponseParams = new Gson().fromJson(resp, mapType);
-        postHPPData(webView, getHPPPostData(consumerResponseParams));
+        }
     }
 
     private HashMap<String, String> getHPPPostData(Map<String, String> params) {
@@ -299,21 +330,29 @@ public class HPPManagerFragment extends Fragment implements Callback<Response> {
     }
 
     private void postHPPData(final WebView webView, HashMap<String, String> postData) {
-        ApiAdapter.getAdapter(getHostPath(hppManager.getHppURL()), getRequestHeaders())
-                .getHPP(getRelativePathEncoded(hppManager.getHppURL()), postData,
-                        new Callback<Response>() {
-                            @Override
-                            public void success(Response s, Response response) {
-                                String htmlString = new String(((TypedByteArray) response.getBody()).getBytes());
-                                loadWebView(webView, hppManager.getHppURL(), htmlString);
-                            }
+    Call<ResponseBody> call =  ApiAdapter.getAdapter(getHostPath(hppManager.getHppURL()), getRequestHeaders())
+                .getHPP(getRelativePathEncoded(hppManager.getHppURL()), postData);
 
-                            @Override
-                            public void failure(RetrofitError error) {
-                                mListener.hppManagerFailedWithError(new HPPError(error.getMessage(), error, error.getUrl()));
-                            }
-                        }
-                );
+    call.enqueue(                        new Callback<ResponseBody> (){
+        @Override
+        public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+            if(response.isSuccessful()) {
+                String htmlString = null;
+                try {
+                    htmlString = new String(response.body().bytes());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                loadWebView(webView, hppManager.getHppURL(), htmlString);
+            }
+        }
+
+        @Override
+        public void  onFailure(Call<ResponseBody> call, Throwable error) {
+            mListener.hppManagerFailedWithError(new HPPError(error.getMessage(), error, call.request().url().encodedPath()));
+        }
+    });
     }
 
     private void loadWebView(final WebView webView, final String url, final String htmlString) {
@@ -331,46 +370,36 @@ public class HPPManagerFragment extends Fragment implements Callback<Response> {
         if (!isResultReceived && data.length() > 0) {
             isResultReceived = true;
 
-            ApiAdapter.getAdapter(getHostPath(hppManager.getHppResponseConsumerURL()), getRequestHeaders())
+         Call<ResponseBody> call =  ApiAdapter.getAdapter(getHostPath(hppManager.getHppResponseConsumerURL()), getRequestHeaders())
                     .getConsumerRequest(
-                            getRelativePathEncoded(hppManager.getHppResponseConsumerURL()),
-                            data,
-                            new Callback<Response>() {
-                                @Override
-                                public void success(Response s, Response response) {
+                            getRelativePathEncoded(hppManager.getHppResponseConsumerURL()), data);
+         call.enqueue(            new Callback<ResponseBody>() {
+             @Override
+             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                 if(response.isSuccessful()) {
+                     String msg = null;
+                     try {
+                         msg = new String(response.body().bytes());
+                     } catch (IOException e) {
+                         e.printStackTrace();
+                     }
 
-                                    String msg = new String(((TypedByteArray) response.getBody()).getBytes());
+                     mListener.hppManagerCompletedWithResult(msg);
+                 } else {
+                     mListener.hppManagerFailedWithError(new HPPError("Payment Declined", new Exception("Payment Declined"), hppManager.getHppResponseConsumerURL()));
+                 }
+             }
 
-                                    Method[] methods = mListener.getClass().getDeclaredMethods();
-
-                                    for (int i = 0; i < methods.length; i++) {
-                                        if (methods[i].getName().equals(HPPManagerListener.HPP_MANAGER_COMPLETED_WITH_RESULT)) {
-                                            Method method = methods[i];
-
-                                            try {
-                                                mListener.hppManagerCompletedWithResult(ApiAdapter.getGson().fromJson(msg, method.getParameterTypes()[0]));
-                                            } catch (Exception error) {
-                                                mListener.hppManagerFailedWithError(new HPPError(msg, error, hppManager.getHppResponseConsumerURL()));
-                                            }
-                                            break;
-                                        }
-                                    }
-
-                                }
-
-                                @Override
-                                public void failure(RetrofitError error) {
-                                    mListener.hppManagerFailedWithError(new HPPError(error.getMessage(), error, error.getUrl()));
-                                }
-                            }
-                    );
+             @Override
+             public void onFailure(Call<ResponseBody> call, Throwable error) {
+                 mListener.hppManagerFailedWithError(new HPPError(error.getMessage(), error, call.request().url().encodedPath()));
+             }
+         });
 
         }
     }
 
-    @Override
-    public void failure(RetrofitError error) {
-        mListener.hppManagerFailedWithError(new HPPError(error.getMessage(), error, error.getUrl()));
+    public void handleFailure(Call<ResponseBody> call, Throwable t) {
+        mListener.hppManagerFailedWithError(new HPPError(t.getMessage(), t, call.request().url().encodedPath()));
     }
-
 }
